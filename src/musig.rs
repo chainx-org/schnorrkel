@@ -201,7 +201,7 @@ impl Commitment {
 // TODO: serde_boilerplate!(Commitment);
 
 
-/// Internal representation of revealed points 
+/// Internal representation of revealed points
 #[derive(Debug,Clone,PartialEq,Eq)]
 struct RevealedPoints([RistrettoPoint; REWINDS]);
 
@@ -218,7 +218,7 @@ impl RevealedPoints {
         // self.check_length() ?;
         let mut reveal = [0u8; 32*REWINDS];
         for (o,i) in reveal.chunks_mut(32).zip(&self.0) {
-            o.copy_from_slice(i.compress().as_bytes()); 
+            o.copy_from_slice(i.compress().as_bytes());
         }
         Reveal(reveal)
     }
@@ -256,7 +256,7 @@ impl Reveal {
 
     fn to_commitment(&self) -> SignatureResult<Commitment> {
         self.check_length() ?;
-        Ok(Commitment::for_R( self.iter_points() )) 
+        Ok(Commitment::for_R( self.iter_points() ))
     }
 
     fn into_points(&self) -> SignatureResult<RevealedPoints> {
@@ -346,13 +346,14 @@ impl CoR {
 
 /// Schnorr multi-signature (MuSig) container generic over its session types
 #[allow(non_snake_case)]
-pub struct MuSig<T: SigningTranscript+Clone,S> {
+#[derive(Clone)]
+pub struct MuSig<T: SigningTranscript+Clone,S: Clone> {
     t: T,
     Rs: BTreeMap<PublicKey,CoR>,
     stage: S
 }
 
-impl<T: SigningTranscript+Clone,S> MuSig<T,S> {
+impl<T: SigningTranscript+Clone,S: Clone> MuSig<T,S> {
     /// Iterates over public keys.
     ///
     /// If `require_reveal=true` then we count only public key that revealed their `R` values.
@@ -399,7 +400,7 @@ impl<T: SigningTranscript+Clone,S> MuSig<T,S> {
 
     /// Computes the delinearizing `R` values.
     ///
-    /// Requires `self.t` be in its final state. 
+    /// Requires `self.t` be in its final state.
     /// Only compatable with `compute_public_key` when calling it with `require_reveal=true`
     #[allow(non_snake_case)]
     fn rewinder(&self) -> impl Fn(&PublicKey) -> [Scalar; REWINDS] {
@@ -441,8 +442,8 @@ impl<T: SigningTranscript+Clone,S> MuSig<T,S> {
 pub trait TranscriptStages {}
 impl<K> TranscriptStages for CommitStage<K> where K: Borrow<Keypair> {}
 impl<K> TranscriptStages for RevealStage<K> where K: Borrow<Keypair> {}
-impl<T,S> MuSig<T,S> 
-where T: SigningTranscript+Clone, S: TranscriptStages
+impl<T,S> MuSig<T,S>
+where T: SigningTranscript+Clone, S: TranscriptStages+Clone
 {
     /// We permit extending the transcript whenever you like, so
     /// that say the message may be agreed upon in parallel to the
@@ -467,13 +468,14 @@ impl Keypair {
 
 /// Commitment stage for cosigner's `R` values
 #[allow(non_snake_case)]
+#[derive(Clone)]
 pub struct CommitStage<K: Borrow<Keypair>> {
     keypair: K,
     r_me: [Scalar; REWINDS],
     R_me: Reveal,
 }
 
-impl<K,T> MuSig<T,CommitStage<K>>
+impl<K: Clone,T> MuSig<T,CommitStage<K>>
 where K: Borrow<Keypair>, T: SigningTranscript+Clone
 {
     /// Initialize a multi-signature aka cosignature protocol run.
@@ -537,13 +539,14 @@ where K: Borrow<Keypair>, T: SigningTranscript+Clone
 
 /// Reveal stage for cosigner's `R` values
 #[allow(non_snake_case)]
+#[derive(Clone)]
 pub struct RevealStage<K: Borrow<Keypair>> {
     keypair: K,
     r_me: [Scalar; REWINDS],
     R_me: Reveal,
 }
 
-impl<K,T> MuSig<T,RevealStage<K>> 
+impl<K: Clone,T> MuSig<T,RevealStage<K>>
 where K: Borrow<Keypair>, T: SigningTranscript+Clone
 {
     /// Reveal our `R` contribution to send to all other cosigners
@@ -635,6 +638,7 @@ where K: Borrow<Keypair>, T: SigningTranscript+Clone
 
 /// Final cosigning stage collection
 #[allow(non_snake_case)]
+#[derive(Clone)]
 pub struct CosignStage {
     /// Collective `R` value
     R: CompressedRistretto,
@@ -714,6 +718,7 @@ pub fn collect_cosignatures<T: SigningTranscript+Clone>(mut t: T) -> MuSig<T,Col
 }
 
 /// Initial stage for cosignature collectors who do not themselves cosign.
+#[derive(Clone)]
 pub struct CollectStage;
 
 impl<T: SigningTranscript+Clone> MuSig<T,CollectStage> {
