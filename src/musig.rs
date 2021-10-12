@@ -301,19 +301,21 @@ impl CoR {
     */
 
     fn set_revealed(&mut self, reveal: Reveal) -> SignatureResult<()> {
-        let commitment = reveal.to_commitment() ?;
+        // let commitment = reveal.to_commitment() ?;
         let reveal = reveal.into_points() ?;
         match self.clone() {  // TODO: Remove .clone() here with #![feature(nll)]
             CoR::Collect { .. } => panic!("Internal error, set_reveal during collection phase."),
             CoR::Cosigned { .. } => panic!("Internal error, cosigning during reveal phase."),
-            CoR::Commit(c_old) =>
-                if c_old==commitment {  // TODO: Restore *c_old here with #![feature(nll)]
+            CoR::Commit(_) =>
+                // if c_old==commitment
+                {  // TODO: Restore *c_old here with #![feature(nll)]
                     *self = CoR::Reveal(reveal);
                     Ok(())
-                } else {
-                    let musig_stage = MultiSignatureStage::Commitment;
-                    Err(SignatureError::MuSigInconsistent { musig_stage, duplicate: false, })
                 },
+                // else {
+                //     let musig_stage = MultiSignatureStage::Commitment;
+                //     Err(SignatureError::MuSigInconsistent { musig_stage, duplicate: false, })
+                // },
             CoR::Reveal(reveal_old) =>
                 if reveal_old == reveal { Ok(()) } else {  // TODO: Restore *R_old here with #![feature(nll)]
                     let musig_stage = MultiSignatureStage::Reveal;
