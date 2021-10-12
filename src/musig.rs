@@ -563,9 +563,9 @@ where K: Borrow<Keypair>, T: SigningTranscript+Clone
      -> SignatureResult<()>
     {
         match self.Rs.entry(them) {
-            Entry::Vacant(_) => {
-                let musig_stage = MultiSignatureStage::Commitment;
-                Err(SignatureError::MuSigAbsent { musig_stage, })
+            Entry::Vacant(v) => {
+                v.insert(CoR::Reveal(theirs.into_points()?));
+                Ok(())
             },
             Entry::Occupied(mut o) =>
                 o.get_mut().set_revealed(theirs),
@@ -789,13 +789,13 @@ mod tests {
 
         let t = signing_context(b"multi-sig").bytes(b"We are legion!");
         let mut commits: Vec<_> = keypairs.iter().map( |k| k.musig(t.clone()) ).collect();
-        for i in 0..commits.len() {
-        let r = commits[i].our_commitment();
-            for j in commits.iter_mut() {
-                assert!( j.add_their_commitment(keypairs[i].public.clone(),r)
-                    .is_ok() != (r == j.our_commitment()) );
-            }
-        }
+        // for i in 0..commits.len() {
+        // let r = commits[i].our_commitment();
+        //     for j in commits.iter_mut() {
+        //         assert!( j.add_their_commitment(keypairs[i].public.clone(),r)
+        //             .is_ok() != (r == j.our_commitment()) );
+        //     }
+        // }
 
         let mut reveal_msgs: Vec<Reveal> = Vec::with_capacity(commits.len());
         let mut reveals: Vec<_> = commits.drain(..).map( |c| c.reveal_stage() ).collect();
