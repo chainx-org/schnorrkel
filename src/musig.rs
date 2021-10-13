@@ -34,9 +34,9 @@
 use core::borrow::{Borrow};  // BorrowMut
 
 #[cfg(feature = "alloc")]
-use alloc::{collections::btree_map::{BTreeMap, Entry}};
+use alloc::{collections::btree_map::{BTreeMap, Entry}, vec::Vec};
 #[cfg(feature = "std")]
-use std::{collections::btree_map::{BTreeMap, Entry}};
+use std::{collections::btree_map::{BTreeMap, Entry}, vec::Vec};
 
 use arrayref::array_ref;
 use arrayvec::ArrayVec;
@@ -47,6 +47,8 @@ use curve25519_dalek::constants;
 use curve25519_dalek::ristretto::{CompressedRistretto,RistrettoPoint};
 use curve25519_dalek::scalar::Scalar;
 
+use serde::{Serialize, Deserialize};
+use serde_with::serde_as;
 use super::*;
 use crate::context::SigningTranscript;
 use crate::errors::MultiSignatureStage;
@@ -181,7 +183,7 @@ where K: Borrow<PublicKey>+PartialEq<K>
 const COMMITMENT_SIZE : usize = 16;
 
 /// Commitments to `R_i` values shared between cosigners during signing
-#[derive(Debug,Clone,Copy,PartialEq,Eq)]
+#[derive(Debug,Clone,Copy,PartialEq,Eq,Serialize,Deserialize)]
 pub struct Commitment(pub [u8; COMMITMENT_SIZE]);
 
 impl Commitment {
@@ -202,7 +204,7 @@ impl Commitment {
 
 
 /// Internal representation of revealed points
-#[derive(Debug,Clone,PartialEq,Eq)]
+#[derive(Debug,Clone,PartialEq,Eq,Serialize,Deserialize)]
 struct RevealedPoints([RistrettoPoint; REWINDS]);
 
 impl RevealedPoints {
@@ -226,7 +228,9 @@ impl RevealedPoints {
 
 /// Revealed `R_i` values shared between cosigners during signing
 // #[derive(Debug,Clone,PartialEq,Eq)]
-pub struct Reveal(pub [u8; 32*REWINDS]);
+#[serde_as]
+#[derive(Debug, Deserialize, Serialize)]
+pub struct Reveal(#[serde_as(as = "[_; 32*REWINDS]")] pub [u8; 32*REWINDS]);
 // TODO: serde_boilerplate!(Reveal);
 
 impl Clone for Reveal {
@@ -270,7 +274,7 @@ impl Reveal {
 
 
 #[allow(non_snake_case)]
-#[derive(Debug,Clone,PartialEq,Eq)]
+#[derive(Debug,Clone,PartialEq,Eq,Serialize,Deserialize)]
 enum CoR {
     Commit(Commitment),       // H(R_i)
     Reveal(RevealedPoints),   // R_i
@@ -348,11 +352,13 @@ impl CoR {
 
 /// Schnorr multi-signature (MuSig) container generic over its session types
 #[allow(non_snake_case)]
-#[derive(Clone)]
+#[serde_as]
+#[derive(Debug,Clone,Serialize,Deserialize)]
 pub struct MuSig<T: SigningTranscript+Clone,S: Clone> {
     t: T,
+    #[serde_as(as = "Vec<(_, _)>")]
     Rs: BTreeMap<PublicKey,CoR>,
-    stage: S
+    stage: S,
 }
 
 impl<T: SigningTranscript+Clone,S: Clone> MuSig<T,S> {
@@ -462,7 +468,7 @@ impl Keypair {
     /// copies of the private key, but the `MuSig::new` method
     /// can create an owned version, or use `Rc` or `Arc`.
     #[allow(non_snake_case)]
-    pub fn musig<'k,T>(&'k self, t: T) -> MuSig<T,CommitStage<&'k Keypair>>
+    pub fn musig<T>(self, t: T) -> MuSig<T,CommitStage<Keypair>>
     where T: SigningTranscript+Clone {
         MuSig::new(self,t)
     }
@@ -470,14 +476,14 @@ impl Keypair {
 
 /// Commitment stage for cosigner's `R` values
 #[allow(non_snake_case)]
-#[derive(Clone)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct CommitStage<K: Borrow<Keypair>> {
     keypair: K,
     r_me: [Scalar; REWINDS],
     R_me: Reveal,
 }
 
-impl<K: Clone,T> MuSig<T,CommitStage<K>>
+impl< K: Clone,T> MuSig< T,CommitStage<K>>
 where K: Borrow<Keypair>, T: SigningTranscript+Clone
 {
     /// Initialize a multi-signature aka cosignature protocol run.
@@ -487,7 +493,7 @@ where K: Borrow<Keypair>, T: SigningTranscript+Clone
     /// for the `K = &'k Keypair` case.  You could use `Rc` or `Arc`
     /// with this `MuSig::new` method, or even pass in an owned copy.
     #[allow(non_snake_case)]
-    pub fn new(keypair: K, t: T) -> MuSig<T,CommitStage<K>> {
+    pub fn new(keypair: K, t: T) -> MuSig< T,CommitStage<K>> {
         let nonce = &keypair.borrow().secret.nonce;
 
         let mut r_me = ArrayVec::<[Scalar; REWINDS]>::new();
@@ -507,7 +513,7 @@ where K: Borrow<Keypair>, T: SigningTranscript+Clone
         Rs.insert(keypair.borrow().public, CoR::Reveal( R_me_points ));
 
         let stage = CommitStage { keypair, r_me, R_me };
-        MuSig { t, Rs, stage, }
+        MuSig { t, Rs, stage}
     }
 
     /// Our commitment to our `R` to send to all other cosigners
@@ -534,14 +540,14 @@ where K: Borrow<Keypair>, T: SigningTranscript+Clone
     /// Commit to reveal phase transition.
     #[allow(non_snake_case)]
     pub fn reveal_stage(self) -> MuSig<T,RevealStage<K>> {
-        let MuSig { t, Rs, stage: CommitStage { keypair, r_me, R_me, }, } = self;
-        MuSig { t, Rs, stage: RevealStage { keypair, r_me, R_me, }, }
+        let MuSig { t, Rs, stage: CommitStage { keypair, r_me, R_me, }, .. } = self;
+        MuSig { t, Rs, stage: RevealStage { keypair, r_me, R_me, }}
     }
 }
 
 /// Reveal stage for cosigner's `R` values
 #[allow(non_snake_case)]
-#[derive(Clone)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct RevealStage<K: Borrow<Keypair>> {
     keypair: K,
     r_me: [Scalar; REWINDS],
@@ -632,15 +638,15 @@ where K: Borrow<Keypair>, T: SigningTranscript+Clone
 
         zeroize::Zeroize::zeroize(&mut self.stage.r_me);
 
-        let MuSig { t, mut Rs, stage: RevealStage { .. }, } = self;
+        let MuSig { t, mut Rs, stage: RevealStage { .. }, ..} = self;
         *(Rs.get_mut(&self.stage.keypair.borrow().public).expect("Rs known to contain this public; qed")) = CoR::Cosigned { s: s_me.clone() };
-        MuSig { t, Rs, stage: CosignStage { R, s_me }, }
+        MuSig { t, Rs, stage: CosignStage { R, s_me }}
     }
 }
 
 /// Final cosigning stage collection
 #[allow(non_snake_case)]
-#[derive(Clone)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct CosignStage {
     /// Collective `R` value
     R: CompressedRistretto,
@@ -649,10 +655,10 @@ pub struct CosignStage {
 }
 
 /// Cosignatures shared between cosigners during signing
-#[derive(Debug,Clone,Copy,PartialEq,Eq)]
+#[derive(Debug,Clone,Copy,PartialEq,Eq,Deserialize,Serialize)]
 pub struct Cosignature(pub [u8; 32]);
 
-impl<T: SigningTranscript+Clone> MuSig<T,CosignStage> {
+impl< T: SigningTranscript+Clone+Serialize+Deserialize<'a>> MuSig<T,CosignStage> {
     /// Reveals our signature contribution
     pub fn our_cosignature(&self) -> Cosignature {
         Cosignature(self.stage.s_me.to_bytes())
@@ -714,13 +720,13 @@ impl<T: SigningTranscript+Clone> MuSig<T,CosignStage> {
 
 /// Initialize a collector of cosignatures who does not themselves cosign.
 #[allow(non_snake_case)]
-pub fn collect_cosignatures<T: SigningTranscript+Clone>(mut t: T) -> MuSig<T,CollectStage> {
+pub fn collect_cosignatures<T: SigningTranscript+Clone+Serialize+Deserialize<'a>>(mut t: T) -> MuSig<T,CollectStage> {
     t.proto_name(b"Schnorr-sig");
-    MuSig { t, Rs: BTreeMap::new(), stage: CollectStage, }
+    MuSig { t, Rs: BTreeMap::new(), stage: CollectStage}
 }
 
 /// Initial stage for cosignature collectors who do not themselves cosign.
-#[derive(Clone)]
+#[derive(Debug, Clone,Deserialize,Serialize)]
 pub struct CollectStage;
 
 impl<T: SigningTranscript+Clone> MuSig<T,CollectStage> {
@@ -788,7 +794,7 @@ mod tests {
         let keypairs: Vec<Keypair> = (0..16).map(|_| Keypair::generate()).collect();
 
         let t = signing_context(b"multi-sig").bytes(b"We are legion!");
-        let mut commits: Vec<_> = keypairs.iter().map( |k| k.musig(t.clone()) ).collect();
+        let mut commits: Vec<_> = keypairs.iter().map( |k| k.clone().musig(t.clone()) ).collect();
         // for i in 0..commits.len() {
         // let r = commits[i].our_commitment();
         //     for j in commits.iter_mut() {
@@ -796,7 +802,6 @@ mod tests {
         //             .is_ok() != (r == j.our_commitment()) );
         //     }
         // }
-
         let mut reveal_msgs: Vec<Reveal> = Vec::with_capacity(commits.len());
         let mut reveals: Vec<_> = commits.drain(..).map( |c| c.reveal_stage() ).collect();
         for i in 0..reveals.len() {
@@ -819,7 +824,6 @@ mod tests {
             cosign_msgs.push(r);
             assert_eq!(pk, cosigns[i].public_key());
         }
-
         // let signature = cosigns[0].sign().unwrap();
         let mut c = collect_cosignatures(t.clone());
         for i in 0..cosigns.len() {

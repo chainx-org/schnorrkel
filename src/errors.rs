@@ -137,7 +137,7 @@ impl Display for SignatureError {
                 write!(f, "Cannot use scalar with high-bit set"),
             BytesLengthError { name, length, .. } =>
                 write!(f, "{} must be {} bytes in length", name, length),
-            NotMarkedSchnorrkel => 
+            NotMarkedSchnorrkel =>
                 write!(f, "Signature bytes not marked as a schnorrkel signature"),
             MuSigAbsent { musig_stage, } =>
                 write!(f, "Absent {} violated multi-signature protocol", musig_stage),
@@ -160,7 +160,7 @@ impl failure::Fail for SignatureError {}
 /// `impl From<SignatureError> for E where E: serde::de::Error`.
 #[cfg(feature = "serde")]
 pub fn serde_error_from_signature_error<E>(err: SignatureError) -> E
-where E: serde_crate::de::Error
+where E: serde::de::Error
 {
     use self::SignatureError::*;
     match err {
