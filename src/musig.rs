@@ -205,7 +205,7 @@ impl Commitment {
 
 /// Internal representation of revealed points
 #[derive(Debug,Clone,PartialEq,Eq,Serialize,Deserialize)]
-pub struct RevealedPoints([RistrettoPoint; REWINDS]);
+struct RevealedPoints([RistrettoPoint; REWINDS]);
 
 impl RevealedPoints {
     /*
@@ -216,7 +216,7 @@ impl RevealedPoints {
     }
     */
 
-    pub fn to_reveal(&self) -> Reveal {
+    fn to_reveal(&self) -> Reveal {
         // self.check_length() ?;
         let mut reveal = [0u8; 32*REWINDS];
         for (o,i) in reveal.chunks_mut(32).zip(&self.0) {

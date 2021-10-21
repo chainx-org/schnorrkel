@@ -45,8 +45,9 @@ version = "2.2.1"
 default-features = false
 
 [dependencies.merlin]
-git="https://github.com/AAweidai/merlin.git"
-branch="main"
+version = "3.0"
+# features = ["debug-transcript"]
+default-features = false
 
 # [dependencies.rand]
 # version = "0.8.3"
