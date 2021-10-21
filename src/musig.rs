@@ -352,11 +352,9 @@ impl CoR {
 
 /// Schnorr multi-signature (MuSig) container generic over its session types
 #[allow(non_snake_case)]
-#[serde_as]
-#[derive(Debug,Clone,Serialize,Deserialize)]
+#[derive(Debug,Clone)]
 pub struct MuSig<T: SigningTranscript+Clone,S: Clone> {
     t: T,
-    #[serde_as(as = "Vec<(_, _)>")]
     Rs: BTreeMap<PublicKey,CoR>,
     stage: S,
 }
@@ -658,7 +656,7 @@ pub struct CosignStage {
 #[derive(Debug,Clone,Copy,PartialEq,Eq,Deserialize,Serialize)]
 pub struct Cosignature(pub [u8; 32]);
 
-impl< T: SigningTranscript+Clone+Serialize+Deserialize<'a>> MuSig<T,CosignStage> {
+impl< T: SigningTranscript+Clone> MuSig<T,CosignStage> {
     /// Reveals our signature contribution
     pub fn our_cosignature(&self) -> Cosignature {
         Cosignature(self.stage.s_me.to_bytes())
@@ -720,7 +718,7 @@ impl< T: SigningTranscript+Clone+Serialize+Deserialize<'a>> MuSig<T,CosignStage>
 
 /// Initialize a collector of cosignatures who does not themselves cosign.
 #[allow(non_snake_case)]
-pub fn collect_cosignatures<T: SigningTranscript+Clone+Serialize+Deserialize<'a>>(mut t: T) -> MuSig<T,CollectStage> {
+pub fn collect_cosignatures<T: SigningTranscript+Clone>(mut t: T) -> MuSig<T,CollectStage> {
     t.proto_name(b"Schnorr-sig");
     MuSig { t, Rs: BTreeMap::new(), stage: CollectStage}
 }
