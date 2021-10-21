@@ -36,7 +36,7 @@ use core::borrow::{Borrow};  // BorrowMut
 #[cfg(feature = "alloc")]
 use alloc::{collections::btree_map::{BTreeMap, Entry}, vec::Vec};
 #[cfg(feature = "std")]
-use std::{collections::btree_map::{BTreeMap, Entry}, vec::Vec};
+use std::{collections::btree_map::{BTreeMap, Entry}};
 
 use arrayref::array_ref;
 use arrayvec::ArrayVec;
