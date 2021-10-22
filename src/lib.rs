@@ -1,4 +1,3 @@
-#![feature(in_band_lifetimes)]
 // -*- mode: rust; -*-
 //
 // This file is part of schnorrkel.
